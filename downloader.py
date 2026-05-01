@@ -17,12 +17,17 @@ _ETA_RE      = re.compile(r"ETA\s+([\d:]+)")
 _DEST_RE     = re.compile(r"\[download\] Destination:\s*(.+)")
 _MERGE_RE    = re.compile(r"\[Merger\] Merging formats into \"(.+)\"")
 
-# ── 格式字串（有 ffmpeg → 分離串流取最高畫質後合併；無 ffmpeg → 單一預混串流） ── #
+# ── 格式字串 ────────────────────────────────────────────────────────────── #
+# 優先順序（有 ffmpeg）：
+#   1. HLS 預混串流（m3u8）→ CDN 穩定，速度可靠
+#   2. DASH 分離串流合併   → 畫質最高，但部分影片 CDN 節點限速
+#   3. 任意最佳格式        → 保底
+# 無 ffmpeg 時只能取預混串流，`best` 即可。
 _FORMAT_WITH_FFMPEG = {
-    "最佳畫質": "bestvideo+bestaudio/best",
-    "1080p":   "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
-    "720p":    "bestvideo[height<=720]+bestaudio/best[height<=720]",
-    "480p":    "bestvideo[height<=480]+bestaudio/best[height<=480]",
+    "最佳畫質": "best[protocol^=m3u8]/bestvideo+bestaudio/best",
+    "1080p":   "best[height<=1080][protocol^=m3u8]/bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+    "720p":    "best[height<=720][protocol^=m3u8]/bestvideo[height<=720]+bestaudio/best[height<=720]",
+    "480p":    "best[height<=480][protocol^=m3u8]/bestvideo[height<=480]+bestaudio/best[height<=480]",
 }
 _FORMAT_NO_FFMPEG = {
     "最佳畫質": "best",
@@ -170,6 +175,9 @@ class Downloader:
             cmd += ["--cookies", cookie_file]
         elif browser:
             cmd += ["--cookies-from-browser", browser]
+
+        # HLS 分段並行下載：同時抓 4 個片段，對抗單節點延遲，提升 HLS 整體速度
+        cmd += ["--concurrent-fragments", "4"]
 
         # 進度輸出（機器可讀格式）
         cmd += ["--newline", "--progress"]
