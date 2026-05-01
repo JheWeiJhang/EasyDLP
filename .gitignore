@@ -1,0 +1,37 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# PyInstaller build output
+build/
+dist/
+*.spec
+
+# Auto-downloaded binaries (downloaded at runtime, not committed)
+bin/
+
+# User data & settings (generated at runtime)
+# ~/.yt-dlp-gui/ is stored in user home, not here
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temp files
+*.tmp
+*.bak
+*.log

@@ -1,0 +1,190 @@
+import os
+import re
+import subprocess
+import sys
+import threading
+from pathlib import Path
+
+import ffmpeg_manager
+import ytdlp_manager
+
+_LOCAL_YTDLP = Path(__file__).parent.parent / "youtubedl"
+_PROGRESS_RE = re.compile(r"\[download\]\s+([\d.]+)%")
+_SPEED_RE    = re.compile(r"at\s+([\d.]+\s*\S+/s)")
+_ETA_RE      = re.compile(r"ETA\s+([\d:]+)")
+_DEST_RE     = re.compile(r"\[download\] Destination:\s*(.+)")
+_MERGE_RE    = re.compile(r"\[Merger\] Merging formats into \"(.+)\"")
+
+# ── 格式字串（有 ffmpeg → 分離串流取最高畫質後合併；無 ffmpeg → 單一預混串流） ── #
+_FORMAT_WITH_FFMPEG = {
+    "最佳畫質": "bestvideo+bestaudio/best",
+    "1080p":   "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+    "720p":    "bestvideo[height<=720]+bestaudio/best[height<=720]",
+    "480p":    "bestvideo[height<=480]+bestaudio/best[height<=480]",
+}
+_FORMAT_NO_FFMPEG = {
+    "最佳畫質": "best",
+    "1080p":   "best[height<=1080]/best",
+    "720p":    "best[height<=720]/best",
+    "480p":    "best[height<=480]/best",
+}
+
+AUDIO_FORMAT_MAP = {
+    "MP3": "mp3",
+    "AAC": "aac",
+    "OPUS": "opus",
+    "FLAC": "flac",
+    "M4A": "m4a",
+}
+
+
+def _build_ytdlp_base(ytdlp_path: str) -> list[str]:
+    if ytdlp_path and Path(ytdlp_path).exists():
+        return [ytdlp_path]
+    if ytdlp_manager.LOCAL_EXE.exists():
+        return [str(ytdlp_manager.LOCAL_EXE)]
+    if (_LOCAL_YTDLP / "yt_dlp").is_dir():
+        return [sys.executable, "-m", "yt_dlp", "--no-config-locations"]
+    return ["yt-dlp"]
+
+
+def _subprocess_env() -> dict:
+    """強制 UTF-8 輸出，解決 Windows cp950 亂碼問題。"""
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
+    return env
+
+
+class Downloader:
+    def __init__(self, progress_cb, log_cb, done_cb):
+        self.progress_cb = progress_cb
+        self.log_cb      = log_cb
+        self.done_cb     = done_cb
+        self._process: subprocess.Popen | None = None
+        self._lock       = threading.Lock()
+        self._output_path = ""
+        self._title       = ""
+
+    # ------------------------------------------------------------------ #
+    #  Public API                                                          #
+    # ------------------------------------------------------------------ #
+
+    def download(self, url: str, options: dict):
+        cmd = self._build_command(url, options)
+        self._output_path = options.get("output_dir", "")
+        self._title = ""
+        t = threading.Thread(target=self._run, args=(cmd, options), daemon=True)
+        t.start()
+
+    def cancel(self):
+        with self._lock:
+            if self._process and self._process.poll() is None:
+                self._process.terminate()
+
+    # ------------------------------------------------------------------ #
+    #  Command builder                                                     #
+    # ------------------------------------------------------------------ #
+
+    def _build_command(self, url: str, options: dict) -> list[str]:
+        ytdlp_path = options.get("ytdlp_path", "")
+        cmd = _build_ytdlp_base(ytdlp_path)
+
+        mode      = options.get("mode", "最佳畫質")
+        audio_fmt = options.get("audio_fmt", "MP3")
+        ffmpeg    = ffmpeg_manager.get_ffmpeg_path()   # None 表示沒有 ffmpeg
+
+        if mode == "僅音訊":
+            # 音訊提取一定需要 ffmpeg；有的話用最高品質，沒有就跳過轉檔直接取 m4a/webm
+            cmd += ["-x",
+                    "--audio-format", AUDIO_FORMAT_MAP.get(audio_fmt, "mp3"),
+                    "--audio-quality", "0"]
+            if ffmpeg:
+                cmd += ["--ffmpeg-location", ffmpeg]
+        else:
+            if ffmpeg:
+                # 有 ffmpeg：取最高畫質分離串流，合併成 mp4
+                fmt = _FORMAT_WITH_FFMPEG.get(mode, "bestvideo+bestaudio/best")
+                cmd += ["-f", fmt,
+                        "--merge-output-format", "mp4",
+                        "--ffmpeg-location", ffmpeg]
+            else:
+                # 無 ffmpeg：取單一預混串流，不做合併
+                fmt = _FORMAT_NO_FFMPEG.get(mode, "best")
+                cmd += ["-f", fmt]
+
+        # 輸出路徑
+        output_dir = options.get("output_dir", ".")
+        cmd += ["-o", f"{output_dir}/%(title)s.%(ext)s"]
+
+        # 字幕
+        if options.get("subtitles"):
+            langs = options.get("subtitle_langs", "zh-TW,en").strip() or "zh-TW,en"
+            cmd += ["--write-subs", "--write-auto-subs", "--sub-langs", langs]
+
+        # 縮圖嵌入（需要 ffmpeg）
+        if options.get("embed_thumbnail") and ffmpeg:
+            cmd += ["--embed-thumbnail", "--ffmpeg-location", ffmpeg]
+
+        # 進度輸出（機器可讀格式）
+        cmd += ["--newline", "--progress"]
+
+        cmd.append(url)
+        return cmd
+
+    # ------------------------------------------------------------------ #
+    #  Runner                                                              #
+    # ------------------------------------------------------------------ #
+
+    def _run(self, cmd: list[str], options: dict):
+        try:
+            with self._lock:
+                self._process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    env=_subprocess_env(),
+                    cwd=str(_LOCAL_YTDLP) if (_LOCAL_YTDLP / "yt_dlp").is_dir() else None,
+                )
+            proc = self._process
+            for line in proc.stdout:
+                line = line.rstrip()
+                self._parse_line(line)
+                self.log_cb(line)
+            proc.wait()
+            success = proc.returncode == 0
+        except FileNotFoundError:
+            self.log_cb("錯誤：找不到 yt-dlp 指令。請確認已安裝或在設定中指定路徑。")
+            success = False
+        except Exception as e:
+            self.log_cb(f"錯誤：{e}")
+            success = False
+
+        self.done_cb(success, self._title, self._output_path, options)
+
+    def _parse_line(self, line: str):
+        # 優先抓合併後的最終路徑
+        m2 = _MERGE_RE.search(line)
+        if m2:
+            self._output_path = m2.group(1).strip()
+            self._title = Path(self._output_path).stem
+            return
+
+        # 下載中途的目的地（可能是中間檔）
+        m = _DEST_RE.search(line)
+        if m:
+            path = m.group(1).strip()
+            if not self._title:
+                self._title = Path(path).stem
+            self._output_path = path
+
+        # 進度
+        pm = _PROGRESS_RE.search(line)
+        if pm:
+            pct = float(pm.group(1))
+            speed = sm.group(1) if (sm := _SPEED_RE.search(line)) else ""
+            eta   = em.group(1) if (em := _ETA_RE.search(line))   else ""
+            self.progress_cb(pct, speed, eta)
