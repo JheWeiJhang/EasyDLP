@@ -62,7 +62,7 @@ def fetch_latest_release_url() -> tuple[str, str]:
     req = urllib.request.Request(
         GITHUB_API,
         headers={"Accept": "application/vnd.github+json",
-                 "User-Agent": "yt-dlp-gui/1.0"},
+                 "User-Agent": "EasyDLP/1.0 (https://github.com/JheWeiJhang/EasyDLP)"},
     )
     with urllib.request.urlopen(req, timeout=15) as resp:
         data = json.loads(resp.read())
