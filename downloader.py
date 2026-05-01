@@ -158,11 +158,6 @@ class Downloader:
         if options.get("embed_thumbnail") and ffmpeg:
             cmd += ["--embed-thumbnail", "--ffmpeg-location", ffmpeg]
 
-        # YouTube 專用：使用 tv_embedded + web player client
-        # tv_embedded：不需要 JS runtime、不需要 GVS PO Token，可取得高畫質格式
-        # android client 需要 PO Token，缺少時會被降到 format 18（360p 舊格式）並被 YouTube 限速
-        cmd += ["--extractor-args", "youtube:player_client=tv_embedded,web"]
-
         # 進度輸出（機器可讀格式）
         cmd += ["--newline", "--progress"]
 
