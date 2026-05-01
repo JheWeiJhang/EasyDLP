@@ -162,9 +162,13 @@ class Downloader:
         # JS Runtime：有 node.exe（自動下載或系統安裝）就加入，解決 YouTube n-challenge 限速
         cmd += node_manager.get_ytdlp_args()
 
-        # Chrome Cookie：借用 Chrome 登入狀態，讓 YouTube CDN 以正常速度回應
+        # Cookie：優先使用 cookies.txt 檔案（相容所有瀏覽器）；
+        #         其次使用瀏覽器直接抓取（Chrome 127+ 因 App-Bound Encryption 不支援）
+        cookie_file = options.get("cookie_file", "").strip()
         browser = options.get("cookie_browser", "")
-        if browser:
+        if cookie_file and Path(cookie_file).exists():
+            cmd += ["--cookies", cookie_file]
+        elif browser:
             cmd += ["--cookies-from-browser", browser]
 
         # 進度輸出（機器可讀格式）

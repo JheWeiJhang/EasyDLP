@@ -47,6 +47,7 @@ python -m PyInstaller ^
     --add-data "downloader.py;." ^
     --add-data "ytdlp_manager.py;." ^
     --add-data "ffmpeg_manager.py;." ^
+    --add-data "node_manager.py;." ^
     main.pyw
 
 if %errorlevel% neq 0 (

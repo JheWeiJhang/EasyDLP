@@ -98,24 +98,64 @@ class DownloadFrame(ctk.CTkFrame):
         ctk.CTkCheckBox(chk_frame, text="嵌入縮圖", variable=self._thumb_var).pack(side="left")
 
         # ── Cookie 選項（row=4）──────────────────────────────────────────── #
-        cookie_row = ctk.CTkFrame(self, fg_color="transparent")
-        cookie_row.grid(row=4, column=0, sticky="ew", padx=20, pady=(10, 0))
+        cookie_frame = ctk.CTkFrame(self, fg_color="transparent")
+        cookie_frame.grid(row=4, column=0, sticky="ew", padx=20, pady=(10, 0))
+        cookie_frame.columnconfigure(0, weight=1)
 
         saved_browser = self._settings.get("cookie_browser") or ""
-        self._cookie_var = tk.BooleanVar(value=bool(saved_browser))
-        self._cookie_browser_var = tk.StringVar(value=saved_browser if saved_browser else "chrome")
+        saved_cookie_file = self._settings.get("cookie_file") or ""
+        self._cookie_var = tk.BooleanVar(value=bool(saved_browser or saved_cookie_file))
+        self._cookie_browser_var = tk.StringVar(
+            value=saved_browser if saved_browser else "firefox")
+        self._cookie_file_var = tk.StringVar(value=saved_cookie_file)
 
-        ctk.CTkCheckBox(cookie_row,
-                        text="使用瀏覽器登入狀態（可解決 YouTube 下載限速）",
+        # 第一行：勾選框 + 瀏覽器下拉
+        cookie_row1 = ctk.CTkFrame(cookie_frame, fg_color="transparent")
+        cookie_row1.grid(row=0, column=0, sticky="ew")
+
+        ctk.CTkCheckBox(cookie_row1,
+                        text="使用 Cookie 加速 YouTube 下載",
                         variable=self._cookie_var,
                         command=self._on_cookie_change).pack(side="left")
 
+        ctk.CTkLabel(cookie_row1, text="瀏覽器：",
+                     font=ctk.CTkFont(size=12)).pack(side="left", padx=(16, 0))
+
         self._cookie_menu = ctk.CTkOptionMenu(
-            cookie_row, variable=self._cookie_browser_var,
-            values=["chrome", "firefox", "edge", "brave"],
+            cookie_row1, variable=self._cookie_browser_var,
+            values=["firefox", "chrome", "edge", "brave"],
             width=100, height=24,
             command=lambda _: self._on_cookie_change())
-        self._cookie_menu.pack(side="left", padx=(8, 0))
+        self._cookie_menu.pack(side="left", padx=(4, 0))
+
+        self._cookie_warn_label = ctk.CTkLabel(
+            cookie_row1,
+            text="⚠ Chrome 127+ 不支援，建議用 Firefox",
+            font=ctk.CTkFont(size=10),
+            text_color=("#c0392b", "#e74c3c"))
+        self._cookie_warn_label.pack(side="left", padx=(10, 0))
+
+        # 第二行：cookies.txt 路徑（可選，留空使用瀏覽器）
+        cookie_row2 = ctk.CTkFrame(cookie_frame, fg_color="transparent")
+        cookie_row2.grid(row=1, column=0, sticky="ew", pady=(4, 0))
+        cookie_row2.columnconfigure(1, weight=1)
+
+        self._cookie_file_label = ctk.CTkLabel(
+            cookie_row2, text="cookies.txt（選填，優先使用）：",
+            font=ctk.CTkFont(size=11), text_color="gray")
+        self._cookie_file_label.grid(row=0, column=0, sticky="w")
+
+        self._cookie_file_entry = ctk.CTkEntry(
+            cookie_row2, textvariable=self._cookie_file_var,
+            height=26, font=ctk.CTkFont(size=11),
+            placeholder_text="留空則使用上方瀏覽器 Cookie")
+        self._cookie_file_entry.grid(row=0, column=1, sticky="ew", padx=(6, 6))
+
+        self._cookie_file_btn = ctk.CTkButton(
+            cookie_row2, text="選擇", width=52, height=26,
+            command=self._browse_cookie_file)
+        self._cookie_file_btn.grid(row=0, column=2)
+
         self._on_cookie_change()
 
         # ── ffmpeg 狀態列（row=5）──────────────────────────────────────── #
@@ -228,11 +268,27 @@ class DownloadFrame(ctk.CTkFrame):
         self._langs_entry.configure(state=state)
 
     def _on_cookie_change(self):
-        """Enable/disable cookie browser menu based on checkbox, and persist the choice."""
+        """Enable/disable cookie widgets based on checkbox, and persist the choice."""
         enabled = self._cookie_var.get()
-        self._cookie_menu.configure(state="normal" if enabled else "disabled")
+        state = "normal" if enabled else "disabled"
+        self._cookie_menu.configure(state=state)
+        self._cookie_file_entry.configure(state=state)
+        self._cookie_file_btn.configure(state=state)
+        # Show Chrome warning only when Chrome is selected
+        show_warn = enabled and self._cookie_browser_var.get() == "chrome"
+        self._cookie_warn_label.configure(
+            text="⚠ Chrome 127+ 不支援，建議改用 Firefox" if show_warn else "")
         browser = self._cookie_browser_var.get() if enabled else ""
         self._settings.set("cookie_browser", browser)
+        self._settings.set("cookie_file", self._cookie_file_var.get() if enabled else "")
+
+    def _browse_cookie_file(self):
+        path = filedialog.askopenfilename(
+            title="選擇 cookies.txt 檔案",
+            filetypes=[("cookies.txt", "*.txt"), ("所有檔案", "*.*")],
+            initialdir=str(Path.home()))
+        if path:
+            self._cookie_file_var.set(path)
 
     def _paste_url(self):
         try:
@@ -275,6 +331,7 @@ class DownloadFrame(ctk.CTkFrame):
             "output_dir": self._dir_var.get(),
             "ytdlp_path": self._settings.get("ytdlp_path"),
             "cookie_browser": self._cookie_browser_var.get() if self._cookie_var.get() else "",
+            "cookie_file": self._cookie_file_var.get().strip() if self._cookie_var.get() else "",
         }
         self._current_url = url
         self._current_options = options
@@ -345,6 +402,7 @@ class DownloadFrame(ctk.CTkFrame):
         self._settings.set("embed_thumbnail", options.get("embed_thumbnail"))
         self._settings.set("output_dir", options.get("output_dir"))
         self._settings.set("cookie_browser", options.get("cookie_browser", ""))
+        self._settings.set("cookie_file", options.get("cookie_file", ""))
         self._settings.save()
 
     def _log(self, text: str):

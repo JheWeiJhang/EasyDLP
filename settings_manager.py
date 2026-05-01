@@ -16,6 +16,7 @@ DEFAULTS = {
     "theme": "dark",
     "ytdlp_path": "",
     "cookie_browser": "",   # "chrome" / "firefox" / "edge" / "" (停用)
+    "cookie_file": "",      # cookies.txt 路徑（優先於 cookie_browser）
 }
 
 
