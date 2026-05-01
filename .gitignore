@@ -35,3 +35,6 @@ desktop.ini
 *.tmp
 *.bak
 *.log
+
+# Release zip files (built locally, uploaded to GitHub Releases)
+*.zip
