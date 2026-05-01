@@ -1,3 +1,4 @@
+import locale
 import os
 import re
 import subprocess
@@ -46,6 +47,24 @@ def _build_ytdlp_base(ytdlp_path: str) -> list[str]:
     if (_LOCAL_YTDLP / "yt_dlp").is_dir():
         return [sys.executable, "-m", "yt_dlp", "--no-config-locations"]
     return ["yt-dlp"]
+
+
+def _decode_line(raw: bytes) -> str:
+    """
+    將 yt-dlp stdout 的 raw bytes 解碼為 str。
+
+    yt-dlp exe 在 Windows 上可能用 UTF-8 或系統 OEM 編碼（如 cp950）輸出，
+    視其執行環境而定。策略：
+      1. 先試 UTF-8（最常見，也是我們期望的）
+      2. 失敗就用 locale.getpreferredencoding(False)（Windows ANSI / OEM，如 cp950）
+      3. 最後保底用 'replace' 避免 crash
+    """
+    try:
+        return raw.decode("utf-8").rstrip()
+    except UnicodeDecodeError:
+        pass
+    sys_enc = locale.getpreferredencoding(False) or "cp950"
+    return raw.decode(sys_enc, errors="replace").rstrip()
 
 
 def _subprocess_env() -> dict:
@@ -143,15 +162,14 @@ class Downloader:
                     cmd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
+                    # ★ 讀取 raw bytes，不指定 text/encoding
+                    #   避免 yt-dlp exe 在 Windows 以 cp950 輸出時被誤判為 UTF-8
                     env=_subprocess_env(),
                     cwd=str(_LOCAL_YTDLP) if (_LOCAL_YTDLP / "yt_dlp").is_dir() else None,
                 )
             proc = self._process
-            for line in proc.stdout:
-                line = line.rstrip()
+            for raw in proc.stdout:
+                line = _decode_line(raw)
                 self._parse_line(line)
                 self.log_cb(line)
             proc.wait()
