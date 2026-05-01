@@ -502,7 +502,7 @@ class App(ctk.CTk):
         sidebar.grid(row=0, column=0, sticky="nsew")
         sidebar.rowconfigure(10, weight=1)
 
-        ctk.CTkLabel(sidebar, text="yt-dlp\nGUI",
+        ctk.CTkLabel(sidebar, text="EasyDLP",
                      font=ctk.CTkFont(size=18, weight="bold"),
                      justify="center").pack(pady=(28, 24))
 

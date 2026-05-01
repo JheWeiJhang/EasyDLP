@@ -145,6 +145,11 @@ class Downloader:
         if options.get("embed_thumbnail") and ffmpeg:
             cmd += ["--embed-thumbnail", "--ffmpeg-location", ffmpeg]
 
+        # YouTube 專用：使用 Android + Web player client
+        # 避免「No supported JavaScript runtime」警告及 SSL 解密錯誤
+        # android client 不需要 JS runtime，且使用不同的 CDN 端點，SSL 更穩定
+        cmd += ["--extractor-args", "youtube:player_client=android,web"]
+
         # 進度輸出（機器可讀格式）
         cmd += ["--newline", "--progress"]
 
