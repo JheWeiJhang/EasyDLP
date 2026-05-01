@@ -15,6 +15,7 @@ DEFAULTS = {
     "merge": False,          # 預設不合併（不需要 ffmpeg）
     "theme": "dark",
     "ytdlp_path": "",
+    "cookie_browser": "",   # "chrome" / "firefox" / "edge" / "" (停用)
 }
 
 

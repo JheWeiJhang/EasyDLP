@@ -97,9 +97,30 @@ class DownloadFrame(ctk.CTkFrame):
         self._thumb_var = tk.BooleanVar(value=self._settings.get("embed_thumbnail"))
         ctk.CTkCheckBox(chk_frame, text="嵌入縮圖", variable=self._thumb_var).pack(side="left")
 
-        # ── ffmpeg 狀態列（row=4）──────────────────────────────────────── #
+        # ── Cookie 選項（row=4）──────────────────────────────────────────── #
+        cookie_row = ctk.CTkFrame(self, fg_color="transparent")
+        cookie_row.grid(row=4, column=0, sticky="ew", padx=20, pady=(10, 0))
+
+        saved_browser = self._settings.get("cookie_browser") or ""
+        self._cookie_var = tk.BooleanVar(value=bool(saved_browser))
+        self._cookie_browser_var = tk.StringVar(value=saved_browser if saved_browser else "chrome")
+
+        ctk.CTkCheckBox(cookie_row,
+                        text="使用瀏覽器登入狀態（可解決 YouTube 下載限速）",
+                        variable=self._cookie_var,
+                        command=self._on_cookie_change).pack(side="left")
+
+        self._cookie_menu = ctk.CTkOptionMenu(
+            cookie_row, variable=self._cookie_browser_var,
+            values=["chrome", "firefox", "edge", "brave"],
+            width=100, height=24,
+            command=lambda _: self._on_cookie_change())
+        self._cookie_menu.pack(side="left", padx=(8, 0))
+        self._on_cookie_change()
+
+        # ── ffmpeg 狀態列（row=5）──────────────────────────────────────── #
         ffmpeg_frame = ctk.CTkFrame(self, fg_color="transparent")
-        ffmpeg_frame.grid(row=4, column=0, sticky="ew", padx=20, pady=(6, 0))
+        ffmpeg_frame.grid(row=5, column=0, sticky="ew", padx=20, pady=(6, 0))
 
         has_ffmpeg = ffmpeg_manager.is_available()
         ffmpeg_icon  = "✅" if has_ffmpeg else "⚠️"
@@ -112,17 +133,17 @@ class DownloadFrame(ctk.CTkFrame):
                      text_color=ffmpeg_color,
                      anchor="w").pack(side="left")
 
-        # ── Node.js 狀態列（row=5）─────────────────────────────────────── #
+        # ── Node.js 狀態列（row=6）─────────────────────────────────────── #
         self._js_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self._js_frame.grid(row=5, column=0, sticky="ew", padx=20, pady=(2, 0))
+        self._js_frame.grid(row=6, column=0, sticky="ew", padx=20, pady=(2, 0))
         self._refresh_node_status()
 
         # ── Output dir ───────────────────────────────────────────────── #
         ctk.CTkLabel(self, text="輸出目錄", font=ctk.CTkFont(size=13, weight="bold")
-                     ).grid(row=6, column=0, sticky="w", padx=20, pady=(14, 0))
+                     ).grid(row=7, column=0, sticky="w", padx=20, pady=(14, 0))
 
         dir_row = ctk.CTkFrame(self, fg_color="transparent")
-        dir_row.grid(row=7, column=0, sticky="ew", padx=20, pady=(4, 0))
+        dir_row.grid(row=8, column=0, sticky="ew", padx=20, pady=(4, 0))
         dir_row.columnconfigure(0, weight=1)
 
         self._dir_var = tk.StringVar(value=self._settings.get("output_dir"))
@@ -136,11 +157,11 @@ class DownloadFrame(ctk.CTkFrame):
             self, text="▶  開始下載", height=42,
             font=ctk.CTkFont(size=15, weight="bold"),
             command=self._toggle_download)
-        self._dl_btn.grid(row=8, column=0, sticky="ew", padx=20, pady=(20, 0))
+        self._dl_btn.grid(row=9, column=0, sticky="ew", padx=20, pady=(20, 0))
 
         # ── Progress ─────────────────────────────────────────────────── #
         prog_frame = ctk.CTkFrame(self, fg_color="transparent")
-        prog_frame.grid(row=9, column=0, sticky="ew", padx=20, pady=(12, 0))
+        prog_frame.grid(row=10, column=0, sticky="ew", padx=20, pady=(12, 0))
         prog_frame.columnconfigure(0, weight=1)
 
         self._progress_bar = ctk.CTkProgressBar(prog_frame, height=14)
@@ -152,16 +173,16 @@ class DownloadFrame(ctk.CTkFrame):
 
         self._info_label = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=11),
                                         text_color="gray")
-        self._info_label.grid(row=10, column=0, sticky="w", padx=20, pady=(2, 0))
+        self._info_label.grid(row=11, column=0, sticky="w", padx=20, pady=(2, 0))
 
         # ── Log ──────────────────────────────────────────────────────── #
         ctk.CTkLabel(self, text="輸出記錄", font=ctk.CTkFont(size=12, weight="bold")
-                     ).grid(row=11, column=0, sticky="w", padx=20, pady=(14, 0))
+                     ).grid(row=12, column=0, sticky="w", padx=20, pady=(14, 0))
 
         self._log_box = ctk.CTkTextbox(self, height=180, font=ctk.CTkFont(family="Consolas", size=11),
                                        wrap="none", state="disabled")
-        self._log_box.grid(row=12, column=0, sticky="nsew", padx=20, pady=(4, 16))
-        self.rowconfigure(12, weight=1)
+        self._log_box.grid(row=13, column=0, sticky="nsew", padx=20, pady=(4, 16))
+        self.rowconfigure(13, weight=1)
 
     # ------------------------------------------------------------------ #
     #  Callbacks                                                           #
@@ -206,6 +227,13 @@ class DownloadFrame(ctk.CTkFrame):
         state = "normal" if self._subs_var.get() else "disabled"
         self._langs_entry.configure(state=state)
 
+    def _on_cookie_change(self):
+        """Enable/disable cookie browser menu based on checkbox, and persist the choice."""
+        enabled = self._cookie_var.get()
+        self._cookie_menu.configure(state="normal" if enabled else "disabled")
+        browser = self._cookie_browser_var.get() if enabled else ""
+        self._settings.set("cookie_browser", browser)
+
     def _paste_url(self):
         try:
             text = self.clipboard_get()
@@ -246,6 +274,7 @@ class DownloadFrame(ctk.CTkFrame):
             "embed_thumbnail": self._thumb_var.get(),
             "output_dir": self._dir_var.get(),
             "ytdlp_path": self._settings.get("ytdlp_path"),
+            "cookie_browser": self._cookie_browser_var.get() if self._cookie_var.get() else "",
         }
         self._current_url = url
         self._current_options = options
@@ -315,6 +344,7 @@ class DownloadFrame(ctk.CTkFrame):
         self._settings.set("subtitle_langs", options.get("subtitle_langs"))
         self._settings.set("embed_thumbnail", options.get("embed_thumbnail"))
         self._settings.set("output_dir", options.get("output_dir"))
+        self._settings.set("cookie_browser", options.get("cookie_browser", ""))
         self._settings.save()
 
     def _log(self, text: str):
