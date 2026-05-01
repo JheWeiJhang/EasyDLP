@@ -11,7 +11,7 @@ from settings_manager import SettingsManager
 import ffmpeg_manager
 import ytdlp_manager
 
-APP_TITLE = "yt-dlp GUI"
+APP_TITLE = "EasyDLP"
 WIN_W, WIN_H = 900, 640
 SIDEBAR_W = 140
 MODES = ["最佳畫質", "1080p", "720p", "480p", "僅音訊"]

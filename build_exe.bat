@@ -2,7 +2,7 @@
 chcp 65001 >nul
 cd /d "%~dp0"
 echo ============================================
-echo   yt-dlp GUI - 打包成獨立執行檔 (.exe)
+echo   EasyDLP - 打包成獨立執行檔 (.exe)
 echo ============================================
 echo.
 
@@ -33,11 +33,11 @@ REM 打包
 echo [3/3] 開始打包（這可能需要 2~5 分鐘）...
 echo       ffmpeg 將自動內嵌進 exe，使用者不需要另行安裝。
 echo.
-pyinstaller ^
+python -m PyInstaller ^
     --noconfirm ^
     --windowed ^
     --onedir ^
-    --name "yt-dlp GUI" ^
+    --name "EasyDLP" ^
     --hidden-import customtkinter ^
     --hidden-import imageio_ffmpeg ^
     --collect-all customtkinter ^
@@ -60,7 +60,7 @@ echo ============================================
 echo   打包完成！
 echo.
 echo   執行檔位置：
-echo     dist\yt-dlp GUI\yt-dlp GUI.exe
+echo     dist\EasyDLP\EasyDLP.exe
 echo.
 echo   此資料夾可直接複製給任何 Windows 使用者，
 echo   不需要安裝 Python 或 ffmpeg。
@@ -68,6 +68,6 @@ echo ============================================
 echo.
 
 set /p open="是否開啟輸出資料夾？(Y/N): "
-if /i "%open%"=="Y" explorer "dist\yt-dlp GUI"
+if /i "%open%"=="Y" explorer "dist\EasyDLP"
 
 pause

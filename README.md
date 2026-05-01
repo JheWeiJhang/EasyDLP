@@ -35,7 +35,7 @@
 
 1. 前往 [Releases 頁面](https://github.com/JheWeiJhang/EasyDLP/releases/latest)
 2. 下載 `EasyDLP-vX.X.X-windows-x64.zip`
-3. 解壓縮後雙擊 **`yt-dlp GUI.exe`** 即可使用
+3. 解壓縮後雙擊 **`EasyDLP.exe`** 即可使用
 
 ### 方法二：從原始碼執行（需要 Python 3.10+）
 
@@ -50,7 +50,7 @@ python main.pyw
 
 ```
 雙擊 build_exe.bat，等待 2~5 分鐘
-完成後執行 dist/yt-dlp GUI/yt-dlp GUI.exe
+完成後執行 dist/EasyDLP/EasyDLP.exe
 ```
 
 ---
