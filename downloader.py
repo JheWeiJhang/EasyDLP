@@ -166,6 +166,8 @@ class Downloader:
                     #   避免 yt-dlp exe 在 Windows 以 cp950 輸出時被誤判為 UTF-8
                     env=_subprocess_env(),
                     cwd=str(_LOCAL_YTDLP) if (_LOCAL_YTDLP / "yt_dlp").is_dir() else None,
+                    # ★ 隱藏 Windows 黑色 console 視窗
+                    creationflags=subprocess.CREATE_NO_WINDOW,
                 )
             proc = self._process
             for raw in proc.stdout:
