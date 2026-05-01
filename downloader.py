@@ -7,7 +7,7 @@ import threading
 from pathlib import Path
 
 import ffmpeg_manager
-import jsruntime_manager
+import node_manager
 import ytdlp_manager
 
 _LOCAL_YTDLP = Path(__file__).parent.parent / "youtubedl"
@@ -159,8 +159,8 @@ class Downloader:
         if options.get("embed_thumbnail") and ffmpeg:
             cmd += ["--embed-thumbnail", "--ffmpeg-location", ffmpeg]
 
-        # JS Runtime：有 Node.js/Deno 就自動加入，解決 YouTube n-challenge 限速問題
-        cmd += jsruntime_manager.get_ytdlp_args()
+        # JS Runtime：有 node.exe（自動下載或系統安裝）就加入，解決 YouTube n-challenge 限速
+        cmd += node_manager.get_ytdlp_args()
 
         # 進度輸出（機器可讀格式）
         cmd += ["--newline", "--progress"]

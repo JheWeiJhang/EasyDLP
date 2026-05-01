@@ -9,7 +9,7 @@ from downloader import Downloader
 from history_manager import HistoryManager
 from settings_manager import SettingsManager
 import ffmpeg_manager
-import jsruntime_manager
+import node_manager
 import ytdlp_manager
 
 APP_TITLE = "EasyDLP"
@@ -97,7 +97,7 @@ class DownloadFrame(ctk.CTkFrame):
         self._thumb_var = tk.BooleanVar(value=self._settings.get("embed_thumbnail"))
         ctk.CTkCheckBox(chk_frame, text="嵌入縮圖", variable=self._thumb_var).pack(side="left")
 
-        # ── ffmpeg 狀態列（自動偵測，使用者不需要做任何事）──────────── #
+        # ── ffmpeg 狀態列（row=4）──────────────────────────────────────── #
         ffmpeg_frame = ctk.CTkFrame(self, fg_color="transparent")
         ffmpeg_frame.grid(row=4, column=0, sticky="ew", padx=20, pady=(6, 0))
 
@@ -112,38 +112,17 @@ class DownloadFrame(ctk.CTkFrame):
                      text_color=ffmpeg_color,
                      anchor="w").pack(side="left")
 
-        # ── Node.js / JS Runtime 狀態列 ──────────────────────────────── #
-        js_frame = ctk.CTkFrame(self, fg_color="transparent")
-        js_frame.grid(row=4, column=0, sticky="ew", padx=20, pady=(28, 0))
-
-        has_js = jsruntime_manager.is_available()
-        js_text  = jsruntime_manager.status_text()
-        js_color = ("gray40", "gray60") if has_js else ("#c0392b", "#e74c3c")
-
-        ctk.CTkLabel(js_frame,
-                     text=js_text,
-                     font=ctk.CTkFont(size=11),
-                     text_color=js_color,
-                     anchor="w").pack(side="left")
-
-        if not has_js:
-            # 可點擊的「安裝 Node.js」連結
-            import webbrowser
-            link = ctk.CTkLabel(js_frame,
-                                text="→ 點此安裝 Node.js（可大幅提升 YouTube 下載速度）",
-                                font=ctk.CTkFont(size=11, underline=True),
-                                text_color=("#1a73e8", "#64b5f6"),
-                                cursor="hand2",
-                                anchor="w")
-            link.pack(side="left", padx=(8, 0))
-            link.bind("<Button-1>", lambda e: webbrowser.open(jsruntime_manager.NODEJS_DOWNLOAD_URL))
+        # ── Node.js 狀態列（row=5）─────────────────────────────────────── #
+        self._js_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self._js_frame.grid(row=5, column=0, sticky="ew", padx=20, pady=(2, 0))
+        self._refresh_node_status()
 
         # ── Output dir ───────────────────────────────────────────────── #
         ctk.CTkLabel(self, text="輸出目錄", font=ctk.CTkFont(size=13, weight="bold")
-                     ).grid(row=5, column=0, sticky="w", padx=20, pady=(16, 0))
+                     ).grid(row=6, column=0, sticky="w", padx=20, pady=(14, 0))
 
         dir_row = ctk.CTkFrame(self, fg_color="transparent")
-        dir_row.grid(row=6, column=0, sticky="ew", padx=20, pady=(4, 0))
+        dir_row.grid(row=7, column=0, sticky="ew", padx=20, pady=(4, 0))
         dir_row.columnconfigure(0, weight=1)
 
         self._dir_var = tk.StringVar(value=self._settings.get("output_dir"))
@@ -157,11 +136,11 @@ class DownloadFrame(ctk.CTkFrame):
             self, text="▶  開始下載", height=42,
             font=ctk.CTkFont(size=15, weight="bold"),
             command=self._toggle_download)
-        self._dl_btn.grid(row=7, column=0, sticky="ew", padx=20, pady=(20, 0))
+        self._dl_btn.grid(row=8, column=0, sticky="ew", padx=20, pady=(20, 0))
 
         # ── Progress ─────────────────────────────────────────────────── #
         prog_frame = ctk.CTkFrame(self, fg_color="transparent")
-        prog_frame.grid(row=8, column=0, sticky="ew", padx=20, pady=(12, 0))
+        prog_frame.grid(row=9, column=0, sticky="ew", padx=20, pady=(12, 0))
         prog_frame.columnconfigure(0, weight=1)
 
         self._progress_bar = ctk.CTkProgressBar(prog_frame, height=14)
@@ -173,20 +152,49 @@ class DownloadFrame(ctk.CTkFrame):
 
         self._info_label = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=11),
                                         text_color="gray")
-        self._info_label.grid(row=9, column=0, sticky="w", padx=20, pady=(2, 0))
+        self._info_label.grid(row=10, column=0, sticky="w", padx=20, pady=(2, 0))
 
         # ── Log ──────────────────────────────────────────────────────── #
         ctk.CTkLabel(self, text="輸出記錄", font=ctk.CTkFont(size=12, weight="bold")
-                     ).grid(row=10, column=0, sticky="w", padx=20, pady=(14, 0))
+                     ).grid(row=11, column=0, sticky="w", padx=20, pady=(14, 0))
 
         self._log_box = ctk.CTkTextbox(self, height=180, font=ctk.CTkFont(family="Consolas", size=11),
                                        wrap="none", state="disabled")
-        self._log_box.grid(row=11, column=0, sticky="nsew", padx=20, pady=(4, 16))
-        self.rowconfigure(11, weight=1)
+        self._log_box.grid(row=12, column=0, sticky="nsew", padx=20, pady=(4, 16))
+        self.rowconfigure(12, weight=1)
 
     # ------------------------------------------------------------------ #
     #  Callbacks                                                           #
     # ------------------------------------------------------------------ #
+
+    def _refresh_node_status(self):
+        """Rebuild the Node.js status row (called on init and after download)."""
+        for w in self._js_frame.winfo_children():
+            w.destroy()
+
+        has_node = node_manager.is_available()
+        color = ("gray40", "gray60") if has_node else ("#c0392b", "#e74c3c")
+        ctk.CTkLabel(self._js_frame,
+                     text=node_manager.status_text(),
+                     font=ctk.CTkFont(size=11),
+                     text_color=color,
+                     anchor="w").pack(side="left")
+
+        if not has_node:
+            ctk.CTkButton(
+                self._js_frame, text="自動下載 Node.js",
+                width=140, height=22,
+                font=ctk.CTkFont(size=11),
+                command=self._download_node,
+            ).pack(side="left", padx=(10, 0))
+
+    def _download_node(self):
+        NodeDownloadDialog(self.winfo_toplevel(), on_done=self._on_node_downloaded)
+
+    def _on_node_downloaded(self, success: bool):
+        if success:
+            self._refresh_node_status()
+            self._log("Node.js 已就緒！YouTube 下載速度將大幅提升。")
 
     def _on_mode_change(self, value):
         is_audio = value == "僅音訊"
@@ -688,3 +696,81 @@ class YtdlpDownloadDialog(ctk.CTkToplevel):
 
     def _skip(self):
         self.destroy()
+
+
+# ═══════════════════════════════════════════════════════════════════════ #
+#  Node.js auto-download dialog                                           #
+# ═══════════════════════════════════════════════════════════════════════ #
+
+class NodeDownloadDialog(ctk.CTkToplevel):
+    """Download Node.js LTS (node.exe) into bin/ for YouTube n-challenge solving."""
+
+    def __init__(self, master, on_done=None):
+        super().__init__(master)
+        self.title("下載 Node.js")
+        self.geometry("460x280")
+        self.resizable(False, False)
+        self.grab_set()
+        self.lift()
+
+        self._on_done = on_done
+        self._downloading = False
+
+        self.columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(self, text="下載 Node.js（提升 YouTube 下載速度）",
+                     font=ctk.CTkFont(size=15, weight="bold")
+                     ).grid(row=0, column=0, pady=(24, 6), padx=20)
+
+        ctk.CTkLabel(
+            self,
+            text="Node.js 可讓 EasyDLP 解開 YouTube 防限速機制，\n"
+                 "使下載速度從 ~5 KiB/s 恢復到正常速度。\n"
+                 "約 20~25 MB，下載後自動使用，無需安裝。",
+            justify="center",
+            font=ctk.CTkFont(size=12),
+        ).grid(row=1, column=0, padx=20)
+
+        self._progress_bar = ctk.CTkProgressBar(self, width=400)
+        self._progress_bar.set(0)
+        self._progress_bar.grid(row=2, column=0, padx=30, pady=(20, 4))
+
+        self._status_label = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=11),
+                                           text_color="gray")
+        self._status_label.grid(row=3, column=0)
+
+        self._dl_btn = ctk.CTkButton(self, text="自動下載 Node.js", width=180, height=38,
+                                      command=self._start_download)
+        self._dl_btn.grid(row=4, column=0, pady=(16, 8))
+
+        ctk.CTkButton(self, text="略過", width=80, height=32,
+                      fg_color="transparent", border_width=1,
+                      command=self.destroy).grid(row=5, column=0, pady=(0, 16))
+
+    def _start_download(self):
+        if self._downloading:
+            return
+        self._downloading = True
+        self._dl_btn.configure(state="disabled", text="下載中…")
+
+        node_manager.download_node_async(
+            progress_cb=lambda pct: self.after(0, self._update_progress, pct),
+            log_cb=lambda msg: self.after(0, self._status_label.configure, {"text": msg[:60]}),
+            done_cb=lambda ok, detail: self.after(0, self._finish, ok, detail),
+        )
+
+    def _update_progress(self, pct: float):
+        self._progress_bar.set(pct / 100)
+        self._status_label.configure(text=f"{pct:.1f}%")
+
+    def _finish(self, success: bool, detail: str):
+        if success:
+            self._progress_bar.set(1)
+            self._status_label.configure(text="下載完成 ✓")
+            if self._on_done:
+                self._on_done(True)
+            self.after(1200, self.destroy)
+        else:
+            self._status_label.configure(text=f"失敗：{detail[:50]}")
+            self._dl_btn.configure(state="normal", text="重試")
+            self._downloading = False
