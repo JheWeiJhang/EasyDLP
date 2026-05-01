@@ -82,6 +82,7 @@ class Downloader:
         self.done_cb     = done_cb
         self._process: subprocess.Popen | None = None
         self._lock       = threading.Lock()
+        self._cancelled  = False
         self._output_path = ""
         self._title       = ""
 
@@ -93,13 +94,25 @@ class Downloader:
         cmd = self._build_command(url, options)
         self._output_path = options.get("output_dir", "")
         self._title = ""
+        self._cancelled = False
         t = threading.Thread(target=self._run, args=(cmd, options), daemon=True)
         t.start()
 
     def cancel(self):
+        """終止下載：殺掉整個進程樹（含 ffmpeg 子進程與 SSL 重試連線）。"""
+        self._cancelled = True
         with self._lock:
-            if self._process and self._process.poll() is None:
-                self._process.terminate()
+            proc = self._process
+        if proc and proc.poll() is None:
+            try:
+                # taskkill /F /T 強制終止該 PID 及其所有子進程
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                    capture_output=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
+            except Exception:
+                proc.kill()  # 備援：直接 kill
 
     # ------------------------------------------------------------------ #
     #  Command builder                                                     #
@@ -176,11 +189,13 @@ class Downloader:
                 )
             proc = self._process
             for raw in proc.stdout:
+                if self._cancelled:
+                    break
                 line = _decode_line(raw)
                 self._parse_line(line)
                 self.log_cb(line)
             proc.wait()
-            success = proc.returncode == 0
+            success = (proc.returncode == 0) and not self._cancelled
         except FileNotFoundError:
             self.log_cb("錯誤：找不到 yt-dlp 指令。請確認已安裝或在設定中指定路徑。")
             success = False
