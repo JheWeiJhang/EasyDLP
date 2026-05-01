@@ -9,6 +9,7 @@ from downloader import Downloader
 from history_manager import HistoryManager
 from settings_manager import SettingsManager
 import ffmpeg_manager
+import jsruntime_manager
 import ytdlp_manager
 
 APP_TITLE = "EasyDLP"
@@ -110,6 +111,32 @@ class DownloadFrame(ctk.CTkFrame):
                      font=ctk.CTkFont(size=11),
                      text_color=ffmpeg_color,
                      anchor="w").pack(side="left")
+
+        # ── Node.js / JS Runtime 狀態列 ──────────────────────────────── #
+        js_frame = ctk.CTkFrame(self, fg_color="transparent")
+        js_frame.grid(row=4, column=0, sticky="ew", padx=20, pady=(28, 0))
+
+        has_js = jsruntime_manager.is_available()
+        js_text  = jsruntime_manager.status_text()
+        js_color = ("gray40", "gray60") if has_js else ("#c0392b", "#e74c3c")
+
+        ctk.CTkLabel(js_frame,
+                     text=js_text,
+                     font=ctk.CTkFont(size=11),
+                     text_color=js_color,
+                     anchor="w").pack(side="left")
+
+        if not has_js:
+            # 可點擊的「安裝 Node.js」連結
+            import webbrowser
+            link = ctk.CTkLabel(js_frame,
+                                text="→ 點此安裝 Node.js（可大幅提升 YouTube 下載速度）",
+                                font=ctk.CTkFont(size=11, underline=True),
+                                text_color=("#1a73e8", "#64b5f6"),
+                                cursor="hand2",
+                                anchor="w")
+            link.pack(side="left", padx=(8, 0))
+            link.bind("<Button-1>", lambda e: webbrowser.open(jsruntime_manager.NODEJS_DOWNLOAD_URL))
 
         # ── Output dir ───────────────────────────────────────────────── #
         ctk.CTkLabel(self, text="輸出目錄", font=ctk.CTkFont(size=13, weight="bold")
